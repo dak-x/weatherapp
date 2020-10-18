@@ -1,0 +1,14 @@
+[package]
+name = "wethrapp"
+version = "0.1.0"
+authors = ["dak-x <2018UCS0068@iitjammu.ac.in>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structopt = "0.3.20"
+serde_json = "1.0.59"
+serde = {version = "1.0.117", features = ["derive"]}
+reqwest = { version = "*" , features = ["blocking"] }
+
