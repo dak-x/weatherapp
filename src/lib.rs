@@ -1,11 +1,9 @@
 /// API key
 pub const APP_ID: &str = "14da5e4cac40d2e8893248d960ce48b6";
-use serde::{Deserialize, Serialize};
-use serde_json::{self,Value};
+use serde_json::{self, Map, Value};
 use std::fmt::{self, Display};
 
-/// Structure to capture all the use information about the weather
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct WeatherData {
     city: String,
     country: String,
@@ -15,63 +13,56 @@ pub struct WeatherData {
     temp: f32,
     feels_like: f32,
     humidity: u32,
-    wind_speed: u32,
+    wind_speed: f32,
     wind_dir: String,
 }
 
-#[derive(Debug)]
-struct ParseError {
-    error: String,
-}
-impl Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Coundn't find field {}", self.error)
-    }
-}
-impl std::error::Error for ParseError {
-    // Already defaulted
-}
+impl WeatherData {
+    // Get a weatherData struct with all the attributes described above
+    pub fn from_json(records: serde_json::Value) -> Result<Self, Box<dyn std::error::Error>> {
+        let city: String = records["name"].to_string();
+        let country: String = records["sys"]["country"].to_string();
+        let coord: (f32, f32) = {
+            let c = &records["coord"];
+            (c["lat"].to_string().parse()?, c["lon"].to_string().parse()?)
+        };
 
-enum Jsonval {
-    val(serde_json::Value),
-}
+        let _m = &records["main"];
+        let min_temp: f32 = _m["temp_min"].to_string().parse()?;
+        let max_temp: f32 = _m["temp_max"].to_string().parse()?;
+        let temp: f32 = _m["temp"].to_string().parse()?;
+        let feels_like: f32 = _m["feels_like"].to_string().parse()?;
+        let humidity: u32 = _m["humidity"].to_string().parse()?;
 
-impl Jsonval {
-    fn get_bool(&self) -> Result<bool, ParseError> {
-        match &self {
-            Jsonval::val(serde_json::Value::Bool(b)) => Ok(*b),
-            _ => Err(ParseError {
-                error: format!("Cannot Find Bool"),
-            }),
-        }
-    }
+        let _w = &records["wind"];
+        let wind_speed: f32 = _w["speed"].to_string().parse()?;
+        let wind_dir = {
+            let _dir: i32 = _w["deg"].to_string().parse()?;
 
-    fn get_number(&self) -> Result<f64,ParseError>{
-        match &self {
-            Jsonval::val(serde_json::Value::Number(x)) => Ok(x.as_f64().unwrap()),
-            _ => Err(ParseError{
-                error: format!("Cannot Find Number"),
-            })
-        }
-    }
-
-    fn get_String(&self) -> Result<String, ParseError>{
-        match &self {
-            Jsonval::val(serde_json::Value::String(s)) => Ok(s.to_string()),
-            _ => Err(ParseError{
-                error: format!("Cannot Find String"),
-            })
-            
-        }       
-    }
-
-    fn get_map(&self) -> Result<&serde_json::Map<String,Value>, ParseError>{
-
-        match &self {
-            Jsonval::val(serde_json::Value::Object(x)) => Ok(x), 
-            _ => Err(ParseError{
-                error: format!("Cannot Find Record"),
-            })
-        }
+            let _d = {
+                vec![0i32, 1, 2, 3, 4, 5, 6, 7].iter().fold(420, |acc, &x| {
+                    let d1: i32 = x * 45 - _dir;
+                    let d2: i32 = acc * 54 - _dir;
+                    if d1.abs() < d2.abs() {
+                        x
+                    } else {
+                        acc
+                    }
+                })
+            };
+            vec!["N", "NE", "E", "SE", "S", "SW", "W", "NW"][_d as usize].to_string()
+        };
+        Ok(WeatherData {
+            city,
+            country,
+            coord,
+            min_temp,
+            max_temp,
+            temp,
+            feels_like,
+            humidity,
+            wind_speed,
+            wind_dir,
+        })
     }
 }
