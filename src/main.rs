@@ -3,7 +3,7 @@
 use serde_json::Value;
 use reqwest::{blocking, Error};
 use structopt::StructOpt;
-use wethrapp::*;
+use weather::*;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Weather", about = "Get weather details of the specified City.")]
