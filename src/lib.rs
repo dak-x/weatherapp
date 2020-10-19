@@ -1,10 +1,20 @@
 /// API key
-pub const APP_ID: &str = "14da5e4cac40d2e8893248d960ce48b6";
-use serde_json::{self, Map, Value};
-use std::fmt::{self, Display};
+use serde_json;
+use structopt::StructOpt;
 
+#[structopt(name = "weather", about = "Get today's weather details for the City.")]
+#[derive(Debug, StructOpt)]
+pub struct Opt {
+    /// City to check Weather
+    city: String,
+    /// Country Code
+    #[structopt(default_value = "IN")]
+    country: String,
+}
+
+/// Struct for weather data fetched
 #[derive(Debug, Clone)]
-pub struct WeatherData {
+pub struct Data {
     city: String,
     country: String,
     coord: (f32, f32),
@@ -16,10 +26,10 @@ pub struct WeatherData {
     wind_speed: f32,
     wind_dir: String,
 }
-
-impl WeatherData {
-    // Get a weatherData struct with all the attributes described above
+impl Data {
+    /// Get a Data struct with all the attributes described
     pub fn from_json(records: serde_json::Value) -> Result<Self, Box<dyn std::error::Error>> {
+        
         let city: String = records["name"].to_string();
         let country: String = records["sys"]["country"].to_string();
         let coord: (f32, f32) = {
@@ -36,9 +46,9 @@ impl WeatherData {
 
         let _w = &records["wind"];
         let wind_speed: f32 = _w["speed"].to_string().parse()?;
+        // Mapping wind to named directions like N,NE.. 
         let wind_dir = {
             let _dir: i32 = _w["deg"].to_string().parse()?;
-
             let _d = {
                 vec![0i32, 1, 2, 3, 4, 5, 6, 7].iter().fold(420, |acc, &x| {
                     let d1: i32 = x * 45 - _dir;
@@ -52,7 +62,7 @@ impl WeatherData {
             };
             vec!["N", "NE", "E", "SE", "S", "SW", "W", "NW"][_d as usize].to_string()
         };
-        Ok(WeatherData {
+        Ok(Data {
             city,
             country,
             coord,
@@ -64,5 +74,19 @@ impl WeatherData {
             wind_speed,
             wind_dir,
         })
+    }
+}
+
+/// Makes request and returns Data
+pub mod req {
+    use crate::*;
+    use reqwest;
+    const APP_ID: &str = "14da5e4cac40d2e8893248d960ce48b6";
+
+    pub fn make_request(cli: Opt) -> Result<Data, Box<dyn std::error::Error>> {
+        let req_msg = format! {"http://api.openweathermap.org/data/2.5/weather?q={},{},{}&appid={}&units=metric", cli.city , "0", cli.country ,APP_ID};
+        //.unwrap_or_else(| | "IN".to_string())
+        let body = reqwest::blocking::get(&req_msg)?.text()?;
+        Data::from_json(serde_json::from_str(&body)?)
     }
 }
