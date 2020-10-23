@@ -3,9 +3,10 @@
 use weather::*;
 use structopt::StructOpt;
 
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let c = Opt::from_args();
-    println!("{:?}",req::make_request(c)?);
+    let mut c = Weather::from_args();
+    c.make_request()?;
+    println!("{}",c);
+
     Ok(())
 }

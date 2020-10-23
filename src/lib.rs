@@ -1,15 +1,47 @@
-/// API key
 use serde_json;
 use structopt::StructOpt;
 
 #[structopt(name = "weather", about = "Get today's weather details for the City.")]
 #[derive(Debug, StructOpt)]
-pub struct Opt {
+pub struct Weather {
+    #[structopt(subcommand)]
+    commands: Cmds,
+    /// Set for More Info.
+    #[structopt(short, long)]
+    details: bool,
+
+    #[structopt(skip)]
+    data: Option<Data>,
+}
+
+#[derive(StructOpt, Debug)]
+enum Cmds {
+    /// Get weather details of the city
+    City(CityArgs),
+    /// Get weather details from map coordinates
+    Coords(CoordArgs),
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "City", about = "Get weather details of the city")]
+struct CityArgs {
     /// City to check Weather
     city: String,
     /// Country Code
-    #[structopt(default_value = "IN")]
+    #[structopt(requires("city"), default_value = "IN")]
     country: String,
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(
+    name = "Coordinates",
+    about = "Get weather details from map coordinates"
+)]
+struct CoordArgs {
+    /// Specify Latitude
+    lat: f64,
+    /// Specify Longitude
+    long: f64,
 }
 
 /// Struct for weather data fetched
@@ -17,48 +49,52 @@ pub struct Opt {
 pub struct Data {
     city: String,
     country: String,
-    coord: (f32, f32),
-    min_temp: f32,
-    max_temp: f32,
-    temp: f32,
-    feels_like: f32,
-    humidity: u32,
-    wind_speed: f32,
+    coord: (f64, f64),
+    min_temp: f64,
+    max_temp: f64,
+    temp: f64,
+    feels_like: f64,
+    humidity: u64,
+    wind_speed: f64,
     wind_dir: String,
 }
 impl Data {
     /// Get a Data struct with all the attributes described
     pub fn from_json(records: serde_json::Value) -> Result<Self, Box<dyn std::error::Error>> {
-        
         let city: String = records["name"].to_string();
         let country: String = records["sys"]["country"].to_string();
-        let coord: (f32, f32) = {
+        let coord: (f64, f64) = {
             let c = &records["coord"];
-            (c["lat"].to_string().parse()?, c["lon"].to_string().parse()?)
+            (
+                c["lat"].as_f64().unwrap_or_else(|| 0.0),
+                c["lon"].as_f64().unwrap_or_else(|| 0.0),
+            )
         };
 
         let _m = &records["main"];
-        let min_temp: f32 = _m["temp_min"].to_string().parse()?;
-        let max_temp: f32 = _m["temp_max"].to_string().parse()?;
-        let temp: f32 = _m["temp"].to_string().parse()?;
-        let feels_like: f32 = _m["feels_like"].to_string().parse()?;
-        let humidity: u32 = _m["humidity"].to_string().parse()?;
+        let min_temp: f64 = _m["temp_min"].as_f64().unwrap_or_else(|| 0.0);
+        let max_temp: f64 = _m["temp_max"].as_f64().unwrap_or_else(|| 0.0);
+        let temp: f64 = _m["temp"].as_f64().unwrap_or_else(|| 0.0);
+        let feels_like: f64 = _m["feels_like"].as_f64().unwrap_or_else(|| 0.0);
+        let humidity: u64 = _m["humidity"].as_u64().unwrap_or_else(|| 0);
 
         let _w = &records["wind"];
-        let wind_speed: f32 = _w["speed"].to_string().parse()?;
-        // Mapping wind to named directions like N,NE.. 
+        let wind_speed: f64 = _w["speed"].as_f64().unwrap_or_else(|| 0.0);
+        // Mapping wind to named directions like N,NE..
         let wind_dir = {
-            let _dir: i32 = _w["deg"].to_string().parse()?;
+            let _dir: f64 = _w["deg"].to_string().parse()?;
             let _d = {
-                vec![0i32, 1, 2, 3, 4, 5, 6, 7].iter().fold(420, |acc, &x| {
-                    let d1: i32 = x * 45 - _dir;
-                    let d2: i32 = acc * 54 - _dir;
-                    if d1.abs() < d2.abs() {
-                        x
-                    } else {
-                        acc
-                    }
-                })
+                vec![0f64, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]
+                    .iter()
+                    .fold(420.0, |acc, &x| {
+                        let d1: f64 = x * 45.0 - _dir;
+                        let d2: f64 = acc * 45.0 - _dir;
+                        if d1.abs() < d2.abs() {
+                            x
+                        } else {
+                            acc
+                        }
+                    })
             };
             vec!["N", "NE", "E", "SE", "S", "SW", "W", "NW"][_d as usize].to_string()
         };
@@ -77,16 +113,72 @@ impl Data {
     }
 }
 
+impl std::fmt::Display for Weather {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use colored::Colorize;
+        let data = self.data.as_ref().expect("Request Not Done");
+
+        let color = |s: String| match data.temp {
+            x if x < 20.0 => s.bright_cyan(),
+            x if x < 30.0 => s.bright_yellow(),
+            _ => s.bright_red(),
+        };
+        let fmt_string = |s: String| {
+            let l = s.len();
+            s[1..l - 1].to_string()
+        };
+
+        writeln! {f,""};
+        writeln! {f," {} {}         {}: {}{}",
+        color(fmt_string(data.city.clone())),color(fmt_string(data.country.clone())),"Feels Like".yellow() , color(data.feels_like.to_string()),color("°C".to_string())};
+
+        writeln! {f," {}{}{}    {}{}{}",
+                "Temp: ".yellow(), color(data.temp.to_string()),color("°C".to_string()),
+                "Humidity: ".blue(), data.humidity.to_string().bright_blue(),"%".bright_blue()
+        };
+
+        writeln! {f," {} {}{}       {}{}{}",
+                    "Min: ".cyan(), data.min_temp.to_string().cyan(),"°C".cyan(),
+                    "Max: ".red(), data.max_temp.to_string().red(),"°C".red()
+        };
+
+        // Detailed flag is set then diaply all the stuff
+        if self.details {
+            writeln! {f," {}{}       {}{}",
+                    "Lat: ".bright_green(),  data.coord.0.to_string().bright_green(),
+                    "Long: ".bright_green(), data.coord.1.to_string().bright_green(),
+            };
+            writeln! {f," {}{} {}","Wind: ".bright_blue(),
+                    data.wind_speed.to_string().bright_yellow(),
+                    data.wind_dir.bright_red().bold()
+            };
+        }
+
+        writeln! {f,""}
+    }
+}
+
 /// Makes request and returns Data
 pub mod req {
     use crate::*;
     use reqwest;
     const APP_ID: &str = "14da5e4cac40d2e8893248d960ce48b6";
+    const REQ: &str = "http://api.openweathermap.org/data/2.5/weather?";
 
-    pub fn make_request(cli: Opt) -> Result<Data, Box<dyn std::error::Error>> {
-        let req_msg = format! {"http://api.openweathermap.org/data/2.5/weather?q={},{},{}&appid={}&units=metric", cli.city , "0", cli.country ,APP_ID};
-        //.unwrap_or_else(| | "IN".to_string())
-        let body = reqwest::blocking::get(&req_msg)?.text()?;
-        Data::from_json(serde_json::from_str(&body)?)
+    impl Weather {
+        pub fn make_request(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+            let req_msg: String = match &self.commands {
+                Cmds::City(city_args) => {
+                    format! {"{}q={},{},{}&appid={}",REQ, city_args.city, "0" ,city_args.country, APP_ID }
+                }
+                Cmds::Coords(coord_args) => {
+                    format! {"{}lat={}&lon={}&appid={}",REQ, coord_args.lat,coord_args.long,APP_ID}
+                }
+            };
+            let req_msg = format! {"{}&units={}",req_msg,"metric"};
+            let body = reqwest::blocking::get(&req_msg)?.text()?;
+            self.data = Some(Data::from_json(serde_json::from_str(&body)?)?);
+            Ok(())
+        }
     }
 }
