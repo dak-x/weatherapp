@@ -1,3 +1,5 @@
+#![allow(dead_code,unused)]
+
 use serde_json;
 use structopt::StructOpt;
 
@@ -162,7 +164,6 @@ impl std::fmt::Display for Weather {
 pub mod req {
     use crate::*;
     use reqwest;
-    const APP_ID: &str = "14da5e4cac40d2e8893248d960ce48b6";
     const REQ: &str = "http://api.openweathermap.org/data/2.5/weather?";
 
     impl Weather {

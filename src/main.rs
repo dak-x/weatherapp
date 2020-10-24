@@ -1,4 +1,4 @@
-// ! Currently add support for only 1 option i.e. city name. Later continue to add more functionalities.
+#![allow(dead_code,unused)]
 
 use weather::*;
 use structopt::StructOpt;
