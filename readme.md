@@ -4,7 +4,7 @@ It is built on Rust and requires `cargo` *Rust package manager* to build.
 Install `cargo` following the instructions at `https://doc.rust-lang.org/cargo/getting-started/installation.html`.
 
 
-## Setup <hr>
+## Setup
 ### Step 1: Clone the repositry 
 Open your terminal and navigate to a folder of your choice *Eg: `~/Documents`*
 
