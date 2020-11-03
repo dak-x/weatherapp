@@ -2,6 +2,7 @@
 
 use serde_json;
 use structopt::StructOpt;
+use anyhow::Result;
 
 #[structopt(name = "weather", about = "Get today's weather details for the City.")]
 #[derive(Debug, StructOpt)]
@@ -14,6 +15,9 @@ pub struct Weather {
 
     #[structopt(skip)]
     data: Option<Data>,
+
+    #[structopt(skip)]
+    error: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -46,6 +50,7 @@ struct CoordArgs {
     long: f64,
 }
 
+
 /// Struct for weather data fetched
 #[derive(Debug, Clone)]
 pub struct Data {
@@ -62,7 +67,7 @@ pub struct Data {
 }
 impl Data {
     /// Get a Data struct with all the attributes described
-    pub fn from_json(records: serde_json::Value) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_json(records: serde_json::Value) -> Result<Self> {
         let city: String = records["name"].to_string();
         let country: String = records["sys"]["country"].to_string();
         let coord: (f64, f64) = {
@@ -118,45 +123,53 @@ impl Data {
 impl std::fmt::Display for Weather {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use colored::Colorize;
-        let data = self.data.as_ref().expect("Request Not Done");
 
-        let color = |s: String| match data.temp {
-            x if x < 20.0 => s.bright_cyan(),
-            x if x < 30.0 => s.bright_yellow(),
-            _ => s.bright_red(),
-        };
-        let fmt_string = |s: String| {
-            let l = s.len();
-            s[1..l - 1].to_string()
-        };
+        if self.data.is_some() {
+            //checked above so unwrap is fine
+            let data = self.data.as_ref().unwrap();
 
-        writeln! {f,""};
-        writeln! {f," {} {}         {}: {}{}",
-        color(fmt_string(data.city.clone())),color(fmt_string(data.country.clone())),"Feels Like".yellow() , color(data.feels_like.to_string()),color("°C".to_string())};
-
-        writeln! {f," {}{}{}    {}{}{}",
-                "Temp: ".yellow(), color(data.temp.to_string()),color("°C".to_string()),
-                "Humidity: ".blue(), data.humidity.to_string().bright_blue(),"%".bright_blue()
-        };
-
-        writeln! {f," {} {}{}       {}{}{}",
-                    "Min: ".cyan(), data.min_temp.to_string().cyan(),"°C".cyan(),
-                    "Max: ".red(), data.max_temp.to_string().red(),"°C".red()
-        };
-
-        // Detailed flag is set then diaply all the stuff
-        if self.details {
-            writeln! {f," {}{}       {}{}",
-                    "Lat: ".bright_green(),  data.coord.0.to_string().bright_green(),
-                    "Long: ".bright_green(), data.coord.1.to_string().bright_green(),
+            let color = |s: String| match data.temp {
+                x if x < 20.0 => s.bright_cyan(),
+                x if x < 30.0 => s.bright_yellow(),
+                _ => s.bright_red(),
             };
-            writeln! {f," {}{} {}","Wind: ".bright_blue(),
-                    data.wind_speed.to_string().bright_yellow(),
-                    data.wind_dir.bright_red().bold()
+            let fmt_string = |s: String| {
+                let l = s.len();
+                s[1..l - 1].to_string()
             };
+
+            writeln! {f, ""};
+            writeln! {f, " {} {}         {}: {}{}",
+                      color(fmt_string(data.city.clone())), color(fmt_string(data.country.clone())), "Feels Like".yellow(), color(data.feels_like.to_string()), color("°C".to_string())};
+
+            writeln! {f, " {}{}{}    {}{}{}",
+                      "Temp: ".yellow(), color(data.temp.to_string()), color("°C".to_string()),
+                      "Humidity: ".blue(), data.humidity.to_string().bright_blue(), "%".bright_blue()
+            };
+
+            writeln! {f, " {} {}{}       {}{}{}",
+                      "Min: ".cyan(), data.min_temp.to_string().cyan(), "°C".cyan(),
+                      "Max: ".red(), data.max_temp.to_string().red(), "°C".red()
+            };
+
+            // Detailed flag is set then diaply all the stuff
+            if self.details {
+                writeln! {f, " {}{}       {}{}",
+                          "Lat: ".bright_green(), data.coord.0.to_string().bright_green(),
+                          "Long: ".bright_green(), data.coord.1.to_string().bright_green(),
+                };
+                writeln! {f, " {}{} {}", "Wind: ".bright_blue(),
+                          data.wind_speed.to_string().bright_yellow(),
+                          data.wind_dir.bright_red().bold()
+                };
+            }
+
+            writeln! {f, ""}
+        } else if self.error.is_some() {
+            writeln! {f, "Request failed: {}", self.error.as_ref().unwrap()}
+        } else {
+            panic!("Request Not Done");
         }
-
-        writeln! {f,""}
     }
 }
 
@@ -164,6 +177,8 @@ impl std::fmt::Display for Weather {
 pub mod req {
     use crate::*;
     use reqwest;
+    use anyhow::Context;
+
     const REQ: &str = "http://api.openweathermap.org/data/2.5/weather?";
 
     impl Weather {
@@ -179,9 +194,20 @@ pub mod req {
                     format! {"{}lat={}&lon={}&appid={}",REQ, coord_args.lat,coord_args.long,APP_ID}
                 }
             };
+
             let req_msg = format! {"{}&units={}",req_msg,"metric"};
-            let body = reqwest::blocking::get(&req_msg)?.text()?;
-            self.data = Some(Data::from_json(serde_json::from_str(&body)?)?);
+            let body = reqwest::blocking::get(&req_msg).context("OpenWeather request failed")?.text()?;
+            self.data = match Data::from_json(serde_json::from_str(&body)?)
+            {
+                Ok(data) => {
+                    self.error = None;
+                    Some(data)
+                },
+                Err(e) => {
+                    self.error = Some(serde_json::from_str::<serde_json::Value>(&body)?["message"].to_string());
+                    None
+                }
+            };
             Ok(())
         }
     }
