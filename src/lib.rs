@@ -1,4 +1,4 @@
-#![allow(dead_code,unused)]
+#![allow(dead_code, unused)]
 
 use serde_json;
 use structopt::StructOpt;
@@ -168,6 +168,9 @@ pub mod req {
 
     impl Weather {
         pub fn make_request(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+            use std::env;
+
+            let APP_ID: &'static str = env!("OPENWEATHERAPI", "API token not found");
             let req_msg: String = match &self.commands {
                 Cmds::City(city_args) => {
                     format! {"{}q={},{},{}&appid={}",REQ, city_args.city, "0" ,city_args.country, APP_ID }

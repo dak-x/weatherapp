@@ -15,12 +15,10 @@ Generate an api key at https://openweathermap.org/api and paste it into the `tok
 Build the bin by running :  
 
         ./build.sh
-Alternatively you can append the following code in `src/lib.rs` :
-        
-        const APP_ID: &str = "<Token Key generated>"
-and then run from your terminal 
+Alternatively you can set an Env Variable named `OPENWEATHERAPI = <Your Token>` and then rust 
         
         cargo build --release
+        
 
 ## Using the App:
 You will find the bin file at **`target/release/weather`**. Explore the app via the following command. Copy this binary to your `/bin` folder to call it direcly from your shell. 

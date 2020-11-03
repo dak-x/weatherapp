@@ -1,4 +1,4 @@
 #!/bin/bash
-# Builds the application
-echo "const APP_ID:&str = \"$(<token.txt)\";" >> src/lib.rs
+# This sets the token as an env variable
+export OPENWEATHERAPI=$(<token.txt)
 cargo build --release 
